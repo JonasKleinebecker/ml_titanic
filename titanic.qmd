@@ -1,0 +1,86 @@
+---
+title: "Titanic Data Analysis"
+jupyter: python3
+---
+
+## Imports
+```{python}
+import pandas as pd
+import numpy as np
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import when, col, sum, mean
+from pyspark.ml.feature import OneHotEncoder, StringIndexer
+```
+```{python}
+spark = SparkSession.builder.appName("titanic").getOrCreate()
+spark.version
+```
+
+## Load Data
+```{python}
+spark_train_df = spark.read.csv("train.csv", header=True, inferSchema=True)
+pandas_train_df = pd.read_csv("train.csv")
+spark_test_df = spark.read.csv("test.csv", header=True, inferSchema=True)
+pandas_test_df = pd.read_csv("test.csv")
+```
+
+## Print Data
+```{python}
+spark_train_df.printSchema()
+pandas_train_df.info()
+
+spark_train_df.sample(withReplacement=False, fraction=0.01).show()
+pandas_train_df.sample(5)
+
+spark_train_df.describe().show(5)
+pandas_train_df.describe()
+
+print(spark_train_df.columns)
+print(pandas_train_df.columns)
+```
+
+## Clean Data
+```{python}
+print(pandas_train_df.isnull().sum())
+null_counts = spark_train_df.select([sum(col(c).isNull().cast("int")).alias(c) for c in spark_train_df.columns]).show()
+
+spark_train_df = spark_train_df.drop("PassengerId", "Name", "Ticket", "Cabin")
+spark_train_df.show(5)
+pandas_train_df.drop(columns=["PassengerId", "Name", "Ticket", "Cabin"], inplace=True)
+print(pandas_train_df.head(5))
+
+spark_train_df = spark_train_df.withColumn("Sex", when(spark_train_df[ "Sex" ] == "male", 0).when(spark_train_df[ "Sex" ] == "female", 1))
+# pandas_train_df["Sex"] = pandas_train_df["Sex"].map({"male": 0, "female": 1})
+pandas_train_df["Sex"] = np.where(pandas_train_df["Sex"] == "male", 0, 1)
+
+# Evaluate the bias that would be introduced by dropping Rows with null Age
+pandas_train_nullAge_df = pandas_train_df[pandas_train_df["Age"].isnull()]
+pandas_train_df.describe() - pandas_train_nullAge_df.describe()
+# Similar operation not as easy in pyspark
+
+# Dropping Null Age rows introduces significant bias towards higher class and lower parch, therefore imputing instead
+pandas_train_df["Age"] = pandas_train_df["Age"].fillna(pandas_train_df["Age"].mean())
+spark_train_age_mean = spark_train_df.agg({"Age": "mean"}).collect()[0][0]
+spark_train_df = spark_train_df.fillna({"Age": spark_train_age_mean})
+spark_train_df.show(5)
+print(pandas_train_df.sample(5))
+
+spark_train_df = spark_train_df.withColumn("FamilySize", spark_train_df["SibSp"] + spark_train_df["Parch"] + 1)
+pandas_train_df["FamilySize"] = pandas_train_df["SibSp"] + pandas_train_df["Parch"] + 1
+pandas_train_df = pandas_train_df.drop(columns=["SibSp", "Parch"])
+spark_train_df = spark_train_df.drop("SibSp", "Parch")
+
+# Keeping Embarked is questionable but doing so for one hot encoding practise
+pandas_train_df = pd.get_dummies(pandas_train_df, columns=["Embarked"])
+
+spark_string_indexer = StringIndexer(inputCol="Embarked", outputCol="EmbarkedIndex")
+spark_train_df = spark_string_indexer.fit(spark_train_df).transform(spark_train_df)
+
+spark_one_hot_encoder = OneHotEncoder(inputCol="EmbarkedIndex", outputCol="EmbarkedVec")
+spark_train_df = spark_one_hot_encoder.fit(spark_train_df).transform(spark_train_df)
+spark_train_df = spark_train_df.drop("EmbarkedIndex", "Embarked")
+spark_train_df.show(5)
+print(pandas_train_df.head(5))
+```
+
+

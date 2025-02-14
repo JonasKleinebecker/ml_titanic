@@ -98,24 +98,26 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <section id="imports" class="level2">
 <h2 class="anchored" data-anchor-id="imports">Imports</h2>
-<div id="fbd6ef0b" class="cell" data-execution_count="1">
+<div id="9d0bb480" class="cell" data-execution_count="1">
 <div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> pandas <span class="im">as</span> pd</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyspark.sql <span class="im">import</span> SparkSession</span>
 <span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyspark.sql.functions <span class="im">import</span> when, col, <span class="bu">sum</span>, mean</span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyspark.ml.feature <span class="im">import</span> OneHotEncoder, StringIndexer</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyspark.ml.feature <span class="im">import</span> OneHotEncoder, StringIndexer, VectorAssembler, MinMaxScaler</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyspark.sql.functions <span class="im">import</span> udf</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyspark.sql.types <span class="im">import</span> ArrayType, DoubleType</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<div id="1904f5eb" class="cell" data-execution_count="2">
+<div id="8acf6f8e" class="cell" data-execution_count="2">
 <div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>spark <span class="op">=</span> SparkSession.builder.appName(<span class="st">"titanic"</span>).getOrCreate()</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>spark.version</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="cell-output cell-output-display" data-execution_count="57">
+<div class="cell-output cell-output-display" data-execution_count="62">
 <pre><code>'3.5.4'</code></pre>
 </div>
 </div>
 </section>
 <section id="load-data" class="level2">
 <h2 class="anchored" data-anchor-id="load-data">Load Data</h2>
-<div id="e08c1901" class="cell" data-execution_count="3">
+<div id="c1d768c8" class="cell" data-execution_count="3">
 <div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>spark_train_df <span class="op">=</span> spark.read.csv(<span class="st">"train.csv"</span>, header<span class="op">=</span><span class="va">True</span>, inferSchema<span class="op">=</span><span class="va">True</span>)</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>pandas_train_df <span class="op">=</span> pd.read_csv(<span class="st">"train.csv"</span>)</span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>spark_test_df <span class="op">=</span> spark.read.csv(<span class="st">"test.csv"</span>, header<span class="op">=</span><span class="va">True</span>, inferSchema<span class="op">=</span><span class="va">True</span>)</span>
@@ -124,7 +126,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="print-data" class="level2">
 <h2 class="anchored" data-anchor-id="print-data">Print Data</h2>
-<div id="39820f80" class="cell" data-execution_count="4">
+<div id="53f5d090" class="cell" data-execution_count="4">
 <div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>spark_train_df.printSchema()</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>pandas_train_df.info()</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -170,21 +172,15 @@ Data columns (total 12 columns):
  11  Embarked     889 non-null    object 
 dtypes: float64(2), int64(5), object(5)
 memory usage: 83.7+ KB
-+-----------+--------+------+--------------------+------+----+-----+-----+---------------+-------+-----+--------+
-|PassengerId|Survived|Pclass|                Name|   Sex| Age|SibSp|Parch|         Ticket|   Fare|Cabin|Embarked|
-+-----------+--------+------+--------------------+------+----+-----+-----+---------------+-------+-----+--------+
-|         30|       0|     3| Todoroff, Mr. Lalio|  male|NULL|    0|    0|         349216| 7.8958| NULL|       S|
-|        275|       1|     3|"Healy, Miss. Han...|female|NULL|    0|    0|         370375|   7.75| NULL|       Q|
-|        336|       0|     3|  Denkoff, Mr. Mitto|  male|NULL|    0|    0|         349225| 7.8958| NULL|       S|
-|        424|       0|     3|Danbom, Mrs. Erns...|female|28.0|    1|    1|         347080|   14.4| NULL|       S|
-|        498|       0|     3|Shellard, Mr. Fre...|  male|NULL|    0|    0|      C.A. 6212|   15.1| NULL|       S|
-|        534|       1|     3|Peter, Mrs. Cathe...|female|NULL|    0|    2|           2668|22.3583| NULL|       C|
-|        605|       1|     1|"Homer, Mr. Harry...|  male|35.0|    0|    0|         111426|  26.55| NULL|       C|
-|        748|       1|     2|Sinkkonen, Miss. ...|female|30.0|    0|    0|         250648|   13.0| NULL|       S|
-|        805|       1|     3|Hedman, Mr. Oskar...|  male|27.0|    0|    0|         347089|  6.975| NULL|       S|
-|        828|       1|     2|Mallet, Master. A...|  male| 1.0|    0|    2|S.C./PARIS 2079|37.0042| NULL|       C|
-|        834|       0|     3|Augustsson, Mr. A...|  male|23.0|    0|    0|         347468| 7.8542| NULL|       S|
-+-----------+--------+------+--------------------+------+----+-----+-----+---------------+-------+-----+--------+
++-----------+--------+------+--------------------+------+----+-----+-----+------+------+-----+--------+
+|PassengerId|Survived|Pclass|                Name|   Sex| Age|SibSp|Parch|Ticket|  Fare|Cabin|Embarked|
++-----------+--------+------+--------------------+------+----+-----+-----+------+------+-----+--------+
+|        109|       0|     3|     Rekic, Mr. Tido|  male|38.0|    0|    0|349249|7.8958| NULL|       S|
+|        597|       1|     2|Leitch, Miss. Jes...|female|NULL|    0|    0|248727|  33.0| NULL|       S|
+|        633|       1|     1|Stahelin-Maeglin,...|  male|32.0|    0|    0| 13214|  30.5|  B50|       C|
+|        750|       0|     3|Connaghton, Mr. M...|  male|31.0|    0|    0|335097|  7.75| NULL|       Q|
+|        838|       0|     3| Sirota, Mr. Maurice|  male|NULL|    0|    0|392092|  8.05| NULL|       S|
++-----------+--------+------+--------------------+------+----+-----+-----+------+------+-----+--------+
 
 +-------+-----------------+-------------------+------------------+--------------------+------+------------------+------------------+-------------------+------------------+-----------------+-----+--------+
 |summary|      PassengerId|           Survived|            Pclass|                Name|   Sex|               Age|             SibSp|              Parch|            Ticket|             Fare|Cabin|Embarked|
@@ -205,47 +201,16 @@ Index(['PassengerId', 'Survived', 'Pclass', 'Name', 'Sex', 'Age', 'SibSp',
 </section>
 <section id="clean-data" class="level2">
 <h2 class="anchored" data-anchor-id="clean-data">Clean Data</h2>
-<div id="101296ab" class="cell" data-execution_count="5">
+<section id="remove-columns" class="level3">
+<h3 class="anchored" data-anchor-id="remove-columns">Remove Columns</h3>
+<div id="a11022ec" class="cell" data-execution_count="5">
 <div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(pandas_train_df.isnull().<span class="bu">sum</span>())</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>null_counts <span class="op">=</span> spark_train_df.select([<span class="bu">sum</span>(col(c).isNull().cast(<span class="st">"int"</span>)).alias(c) <span class="cf">for</span> c <span class="kw">in</span> spark_train_df.columns]).show()</span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>spark_train_df <span class="op">=</span> spark_train_df.drop(<span class="st">"PassengerId"</span>, <span class="st">"Name"</span>, <span class="st">"Ticket"</span>, <span class="st">"Cabin"</span>)</span>
 <span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>spark_train_df.show(<span class="dv">5</span>)</span>
 <span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>pandas_train_df.drop(columns<span class="op">=</span>[<span class="st">"PassengerId"</span>, <span class="st">"Name"</span>, <span class="st">"Ticket"</span>, <span class="st">"Cabin"</span>], inplace<span class="op">=</span><span class="va">True</span>)</span>
-<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(pandas_train_df.head(<span class="dv">5</span>))</span>
-<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>spark_train_df <span class="op">=</span> spark_train_df.withColumn(<span class="st">"Sex"</span>, when(spark_train_df[ <span class="st">"Sex"</span> ] <span class="op">==</span> <span class="st">"male"</span>, <span class="dv">0</span>).when(spark_train_df[ <span class="st">"Sex"</span> ] <span class="op">==</span> <span class="st">"female"</span>, <span class="dv">1</span>))</span>
-<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a><span class="co"># pandas_train_df["Sex"] = pandas_train_df["Sex"].map({"male": 0, "female": 1})</span></span>
-<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>pandas_train_df[<span class="st">"Sex"</span>] <span class="op">=</span> np.where(pandas_train_df[<span class="st">"Sex"</span>] <span class="op">==</span> <span class="st">"male"</span>, <span class="dv">0</span>, <span class="dv">1</span>)</span>
-<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a><span class="co"># Evaluate the bias that would be introduced by dropping Rows with null Age</span></span>
-<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>pandas_train_nullAge_df <span class="op">=</span> pandas_train_df[pandas_train_df[<span class="st">"Age"</span>].isnull()]</span>
-<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>pandas_train_df.describe() <span class="op">-</span> pandas_train_nullAge_df.describe()</span>
-<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a><span class="co"># Similar operation not as easy in pyspark</span></span>
-<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a><span class="co"># Dropping Null Age rows introduces significant bias towards higher class and lower parch, therefore imputing instead</span></span>
-<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>pandas_train_df[<span class="st">"Age"</span>] <span class="op">=</span> pandas_train_df[<span class="st">"Age"</span>].fillna(pandas_train_df[<span class="st">"Age"</span>].mean())</span>
-<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>spark_train_age_mean <span class="op">=</span> spark_train_df.agg({<span class="st">"Age"</span>: <span class="st">"mean"</span>}).collect()[<span class="dv">0</span>][<span class="dv">0</span>]</span>
-<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a>spark_train_df <span class="op">=</span> spark_train_df.fillna({<span class="st">"Age"</span>: spark_train_age_mean})</span>
-<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>spark_train_df.show(<span class="dv">5</span>)</span>
-<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(pandas_train_df.sample(<span class="dv">5</span>))</span>
-<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a>spark_train_df <span class="op">=</span> spark_train_df.withColumn(<span class="st">"FamilySize"</span>, spark_train_df[<span class="st">"SibSp"</span>] <span class="op">+</span> spark_train_df[<span class="st">"Parch"</span>] <span class="op">+</span> <span class="dv">1</span>)</span>
-<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a>pandas_train_df[<span class="st">"FamilySize"</span>] <span class="op">=</span> pandas_train_df[<span class="st">"SibSp"</span>] <span class="op">+</span> pandas_train_df[<span class="st">"Parch"</span>] <span class="op">+</span> <span class="dv">1</span></span>
-<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a>pandas_train_df <span class="op">=</span> pandas_train_df.drop(columns<span class="op">=</span>[<span class="st">"SibSp"</span>, <span class="st">"Parch"</span>])</span>
-<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a>spark_train_df <span class="op">=</span> spark_train_df.drop(<span class="st">"SibSp"</span>, <span class="st">"Parch"</span>)</span>
-<span id="cb7-29"><a href="#cb7-29" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-30"><a href="#cb7-30" aria-hidden="true" tabindex="-1"></a><span class="co"># Keeping Embarked is questionable but doing so for one hot encoding practise</span></span>
-<span id="cb7-31"><a href="#cb7-31" aria-hidden="true" tabindex="-1"></a>pandas_train_df <span class="op">=</span> pd.get_dummies(pandas_train_df, columns<span class="op">=</span>[<span class="st">"Embarked"</span>])</span>
-<span id="cb7-32"><a href="#cb7-32" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-33"><a href="#cb7-33" aria-hidden="true" tabindex="-1"></a>spark_string_indexer <span class="op">=</span> StringIndexer(inputCol<span class="op">=</span><span class="st">"Embarked"</span>, outputCol<span class="op">=</span><span class="st">"EmbarkedIndex"</span>)</span>
-<span id="cb7-34"><a href="#cb7-34" aria-hidden="true" tabindex="-1"></a>spark_train_df <span class="op">=</span> spark_string_indexer.fit(spark_train_df).transform(spark_train_df)</span>
-<span id="cb7-35"><a href="#cb7-35" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-36"><a href="#cb7-36" aria-hidden="true" tabindex="-1"></a>spark_one_hot_encoder <span class="op">=</span> OneHotEncoder(inputCol<span class="op">=</span><span class="st">"EmbarkedIndex"</span>, outputCol<span class="op">=</span><span class="st">"EmbarkedVec"</span>)</span>
-<span id="cb7-37"><a href="#cb7-37" aria-hidden="true" tabindex="-1"></a>spark_train_df <span class="op">=</span> spark_one_hot_encoder.fit(spark_train_df).transform(spark_train_df)</span>
-<span id="cb7-38"><a href="#cb7-38" aria-hidden="true" tabindex="-1"></a>spark_train_df <span class="op">=</span> spark_train_df.drop(<span class="st">"EmbarkedIndex"</span>, <span class="st">"Embarked"</span>)</span>
-<span id="cb7-39"><a href="#cb7-39" aria-hidden="true" tabindex="-1"></a>spark_train_df.show(<span class="dv">5</span>)</span>
-<span id="cb7-40"><a href="#cb7-40" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(pandas_train_df.head(<span class="dv">5</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(pandas_train_df.head(<span class="dv">5</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>PassengerId      0
 Survived         0
@@ -282,8 +247,34 @@ only showing top 5 rows
 1         1       1  female  38.0      1      0  71.2833        C
 2         1       3  female  26.0      0      0   7.9250        S
 3         1       1  female  35.0      1      0  53.1000        S
-4         0       3    male  35.0      0      0   8.0500        S
-+--------+------+---+----+-----+-----+-------+--------+
+4         0       3    male  35.0      0      0   8.0500        S</code></pre>
+</div>
+</div>
+</section>
+<section id="convert-sex-to-binary" class="level3">
+<h3 class="anchored" data-anchor-id="convert-sex-to-binary">Convert Sex to Binary</h3>
+<div id="f5df39d4" class="cell" data-execution_count="6">
+<div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>spark_train_df <span class="op">=</span> spark_train_df.withColumn(<span class="st">"Sex"</span>, when(spark_train_df[ <span class="st">"Sex"</span> ] <span class="op">==</span> <span class="st">"male"</span>, <span class="dv">0</span>).when(spark_train_df[ <span class="st">"Sex"</span> ] <span class="op">==</span> <span class="st">"female"</span>, <span class="dv">1</span>))</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="co"># pandas_train_df["Sex"] = pandas_train_df["Sex"].map({"male": 0, "female": 1})</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>pandas_train_df[<span class="st">"Sex"</span>] <span class="op">=</span> np.where(pandas_train_df[<span class="st">"Sex"</span>] <span class="op">==</span> <span class="st">"male"</span>, <span class="dv">0</span>, <span class="dv">1</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="deal-with-null-values-in-age" class="level3">
+<h3 class="anchored" data-anchor-id="deal-with-null-values-in-age">Deal with Null Values in Age</h3>
+<div id="208d1145" class="cell" data-execution_count="7">
+<div class="sourceCode cell-code" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Evaluate the bias that would be introduced by dropping Rows with null Age</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>pandas_train_nullAge_df <span class="op">=</span> pandas_train_df[pandas_train_df[<span class="st">"Age"</span>].isnull()]</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>pandas_train_df.describe() <span class="op">-</span> pandas_train_nullAge_df.describe()</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Similar operation not as easy in pyspark</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Dropping Null Age rows introduces significant bias towards higher class and lower parch, therefore imputing instead</span></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>pandas_train_df[<span class="st">"Age"</span>] <span class="op">=</span> pandas_train_df[<span class="st">"Age"</span>].fillna(pandas_train_df[<span class="st">"Age"</span>].mean())</span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>spark_train_age_mean <span class="op">=</span> spark_train_df.agg({<span class="st">"Age"</span>: <span class="st">"mean"</span>}).collect()[<span class="dv">0</span>][<span class="dv">0</span>]</span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>spark_train_df <span class="op">=</span> spark_train_df.fillna({<span class="st">"Age"</span>: spark_train_age_mean})</span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>spark_train_df.show(<span class="dv">5</span>)</span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(pandas_train_df.sample(<span class="dv">5</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>+--------+------+---+----+-----+-----+-------+--------+
 |Survived|Pclass|Sex| Age|SibSp|Parch|   Fare|Embarked|
 +--------+------+---+----+-----+-----+-------+--------+
 |       0|     3|  0|22.0|    1|    0|   7.25|       S|
@@ -295,12 +286,39 @@ only showing top 5 rows
 only showing top 5 rows
 
      Survived  Pclass  Sex   Age  SibSp  Parch     Fare Embarked
-567         0       3    1  29.0      0      4  21.0750        S
-503         0       3    1  37.0      0      0   9.5875        S
-163         0       3    0  17.0      0      0   8.6625        S
-205         0       3    1   2.0      0      1  10.4625        S
-500         0       3    0  17.0      0      0   8.6625        S
-+--------+------+---+----+-------+----------+-------------+
+134         0       2    0  25.0      0      0  13.0000        S
+371         0       3    0  18.0      1      0   6.4958        S
+188         0       3    0  40.0      1      1  15.5000        Q
+536         0       1    0  45.0      0      0  26.5500        S
+465         0       3    0  38.0      0      0   7.0500        S</code></pre>
+</div>
+</div>
+</section>
+<section id="create-family-size-column" class="level3">
+<h3 class="anchored" data-anchor-id="create-family-size-column">Create Family Size Column</h3>
+<div id="f06308cb" class="cell" data-execution_count="8">
+<div class="sourceCode cell-code" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>spark_train_df <span class="op">=</span> spark_train_df.withColumn(<span class="st">"FamilySize"</span>, spark_train_df[<span class="st">"SibSp"</span>] <span class="op">+</span> spark_train_df[<span class="st">"Parch"</span>] <span class="op">+</span> <span class="dv">1</span>)</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>pandas_train_df[<span class="st">"FamilySize"</span>] <span class="op">=</span> pandas_train_df[<span class="st">"SibSp"</span>] <span class="op">+</span> pandas_train_df[<span class="st">"Parch"</span>] <span class="op">+</span> <span class="dv">1</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>pandas_train_df <span class="op">=</span> pandas_train_df.drop(columns<span class="op">=</span>[<span class="st">"SibSp"</span>, <span class="st">"Parch"</span>])</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>spark_train_df <span class="op">=</span> spark_train_df.drop(<span class="st">"SibSp"</span>, <span class="st">"Parch"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="one-hot-encode-embarked-column" class="level3">
+<h3 class="anchored" data-anchor-id="one-hot-encode-embarked-column">One Hot Encode Embarked Column</h3>
+<div id="e35c4647" class="cell" data-execution_count="9">
+<div class="sourceCode cell-code" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Keeping Embarked is questionable but doing so for one hot encoding practise</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>pandas_train_df <span class="op">=</span> pd.get_dummies(pandas_train_df, columns<span class="op">=</span>[<span class="st">"Embarked"</span>])</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>spark_string_indexer <span class="op">=</span> StringIndexer(inputCol<span class="op">=</span><span class="st">"Embarked"</span>, outputCol<span class="op">=</span><span class="st">"EmbarkedIndex"</span>)</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>spark_train_df <span class="op">=</span> spark_string_indexer.fit(spark_train_df).transform(spark_train_df)</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>spark_one_hot_encoder <span class="op">=</span> OneHotEncoder(inputCol<span class="op">=</span><span class="st">"EmbarkedIndex"</span>, outputCol<span class="op">=</span><span class="st">"EmbarkedVec"</span>)</span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>spark_train_df <span class="op">=</span> spark_one_hot_encoder.fit(spark_train_df).transform(spark_train_df)</span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>spark_train_df <span class="op">=</span> spark_train_df.drop(<span class="st">"EmbarkedIndex"</span>, <span class="st">"Embarked"</span>)</span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>spark_train_df.show(<span class="dv">5</span>)</span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(pandas_train_df.head(<span class="dv">5</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>+--------+------+---+----+-------+----------+-------------+
 |Survived|Pclass|Sex| Age|   Fare|FamilySize|  EmbarkedVec|
 +--------+------+---+----+-------+----------+-------------+
 |       0|     3|  0|22.0|   7.25|         2|(2,[0],[1.0])|
@@ -324,6 +342,48 @@ only showing top 5 rows
 2        True  
 3        True  
 4        True  </code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="normalize-data" class="level2">
+<h2 class="anchored" data-anchor-id="normalize-data">Normalize Data</h2>
+<div id="4537413a" class="cell" data-execution_count="10">
+<div class="sourceCode cell-code" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>columns_to_normalize <span class="op">=</span> [<span class="st">"Pclass"</span>, <span class="st">"Age"</span>, <span class="st">"Fare"</span>, <span class="st">"FamilySize"</span>]</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>pandas_train_df[columns_to_normalize] <span class="op">=</span> (pandas_train_df[columns_to_normalize] <span class="op">-</span> pandas_train_df[columns_to_normalize].<span class="bu">min</span>()) <span class="op">/</span> (pandas_train_df[columns_to_normalize].<span class="bu">max</span>() <span class="op">-</span></span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>  pandas_train_df[columns_to_normalize].<span class="bu">min</span>())</span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>assembler <span class="op">=</span> VectorAssembler(inputCols<span class="op">=</span>columns_to_normalize, outputCol<span class="op">=</span><span class="st">"features"</span>)</span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>spark_df_assembled <span class="op">=</span> assembler.transform(spark_train_df)</span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a>scaler <span class="op">=</span> MinMaxScaler(inputCol<span class="op">=</span><span class="st">"features"</span>, outputCol<span class="op">=</span><span class="st">"features_scaled"</span>)</span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a>spark_df_scaled <span class="op">=</span> scaler.fit(spark_df_assembled).transform(spark_df_assembled)</span>
+<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a>to_array <span class="op">=</span> udf(<span class="kw">lambda</span> v: v.toArray().tolist(), ArrayType(DoubleType()))</span>
+<span id="cb15-12"><a href="#cb15-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-13"><a href="#cb15-13" aria-hidden="true" tabindex="-1"></a>spark_train_df <span class="op">=</span> spark_df_scaled.withColumn(<span class="st">"scaled_array"</span>, to_array(spark_df_scaled[<span class="st">"features_scaled"</span>]))</span>
+<span id="cb15-14"><a href="#cb15-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-15"><a href="#cb15-15" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i, col <span class="kw">in</span> <span class="bu">enumerate</span>(columns_to_normalize):</span>
+<span id="cb15-16"><a href="#cb15-16" aria-hidden="true" tabindex="-1"></a>  spark_train_df <span class="op">=</span>  spark_train_df.withColumn(<span class="ss">f"</span><span class="sc">{</span>col<span class="sc">}</span><span class="ss">_normalized"</span>, spark_train_df[<span class="st">"scaled_array"</span>].getItem(i))</span>
+<span id="cb15-17"><a href="#cb15-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-18"><a href="#cb15-18" aria-hidden="true" tabindex="-1"></a>spark_train_df <span class="op">=</span> spark_train_df.drop(<span class="st">"scaled_array"</span>, <span class="st">"features"</span>, <span class="st">"features_scaled"</span>)</span>
+<span id="cb15-19"><a href="#cb15-19" aria-hidden="true" tabindex="-1"></a>spark_train_df <span class="op">=</span> spark_train_df.drop(<span class="op">*</span>columns_to_normalize)</span>
+<span id="cb15-20"><a href="#cb15-20" aria-hidden="true" tabindex="-1"></a>spark_train_df.show(<span class="dv">5</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>+--------+---+-------------+-----------------+-------------------+--------------------+---------------------+
+|Survived|Sex|  EmbarkedVec|Pclass_normalized|     Age_normalized|     Fare_normalized|FamilySize_normalized|
++--------+---+-------------+-----------------+-------------------+--------------------+---------------------+
+|       0|  0|(2,[0],[1.0])|              1.0| 0.2711736617240513|0.014151057562208049|                  0.1|
+|       1|  1|(2,[1],[1.0])|              0.0| 0.4722292033174164| 0.13913573538264068|                  0.1|
+|       1|  1|(2,[0],[1.0])|              1.0|0.32143754712239253|0.015468569817999833|                  0.0|
+|       1|  1|(2,[0],[1.0])|              0.0|0.43453128926866047| 0.10364429745562033|                  0.1|
+|       0|  0|(2,[0],[1.0])|              1.0|0.43453128926866047|0.015712553569072387|                  0.0|
++--------+---+-------------+-----------------+-------------------+--------------------+---------------------+
+only showing top 5 rows
+</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>[Stage 158:&gt;                                                        (0 + 1) / 1]                                                                                </code></pre>
 </div>
 </div>
 </section>
